@@ -1,0 +1,17 @@
+﻿global using System;
+global using System.Collections.Generic;
+global using System.Linq;
+global using System.Reflection;
+global using System.Reflection.Emit;
+global using BepInEx;
+global using BepInEx.Configuration;
+global using BepInEx.Logging;
+global using BepInEx.Bootstrap;
+global using HarmonyLib;
+global using TMPro;
+global using UnityEngine;
+global using UnityEngine.UI;
+global using Object = UnityEngine.Object;
+global using Jotunn.Utils;
+global using UnityEngine.SceneManagement;
+global using Random = UnityEngine.Random;
