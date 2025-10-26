@@ -40,8 +40,11 @@
     <Folder Include="Properties\" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BossMessageConfig.cs" />
     <Compile Include="GlobalUsings.cs" />
     <Compile Include="Helper.cs" />
+    <Compile Include="VB_BossDodge.cs" />
+    <Compile Include="VB_BossDodgePatches.cs" />
     <Compile Include="VB_BossMain.cs" />
     <Compile Include="VB_BossMessage.cs" />
     <Compile Include="VB_BossTaunts.cs" />
@@ -82,6 +85,9 @@
     <Reference Include="Jotunn">
       <HintPath>..\..\..\0lib\Jotunn.dll</HintPath>
     </Reference>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.4\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Reference Include="Splatform">
       <HintPath>..\..\..\0lib\Splatform.dll</HintPath>
     </Reference>
@@ -96,6 +102,9 @@
     </Reference>
     <Reference Include="UnityEngine">
       <HintPath>..\..\..\0lib\UnityEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>..\..\..\0lib\UnityEngine.AnimationModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.AssetBundleModule">
       <HintPath>..\..\..\0lib\UnityEngine.AssetBundleModule.dll</HintPath>

@@ -15,3 +15,6 @@ global using Object = UnityEngine.Object;
 global using Jotunn.Utils;
 global using UnityEngine.SceneManagement;
 global using Random = UnityEngine.Random;
+global using Paths = BepInEx.Paths;
+global using System.IO;
+global using Newtonsoft.Json;

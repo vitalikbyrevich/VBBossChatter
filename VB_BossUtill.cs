@@ -14,7 +14,7 @@ public class BossUtill
 
     public static void SendMessageInChatShout(Humanoid boss, string[] messages, string m_color, string playerName = null)
     {
-        if (!boss || !Chat.instance) return;
+        if (!boss || !Chat.instance || messages == null || messages.Length == 0) return;
 
         string bossName = Localization.instance.Localize(boss.m_name);
         string randomMessage = messages[Random.Range(0, messages.Length)];
@@ -25,17 +25,88 @@ public class BossUtill
         Chat.instance.AddString(bossName, finalText, Talker.Type.Shout);
     }
 
-    public static void SendMessageInChatNormal(Humanoid boss, string[] messages, string m_color, string playerName = null)
+    public static void SendMessageAsRaven(Humanoid boss, string[] messages, string color = "#FFA500", string playerName = null)
     {
-        if (!boss || !Chat.instance) return;
+        if (!boss || !Chat.instance || messages == null || messages.Length == 0) return;
 
-        string bossName = Localization.instance.Localize(boss.m_name);
         string randomMessage = messages[Random.Range(0, messages.Length)];
+        if (string.IsNullOrEmpty(randomMessage)) return;
 
-        string finalText = string.IsNullOrEmpty(playerName) ? $"<color={m_color}>{randomMessage}</color>" : $"<color={m_color}>{playerName}, {randomMessage}</color>";
+        // Форматируем текст
+        string finalText;
+        if (string.IsNullOrEmpty(playerName))
+        {
+            finalText = $"<color={color}>{randomMessage}</color>";
+        }
+        else
+        {
+            finalText = $"<color={color}>{playerName}, {randomMessage}</color>";
+        }
 
-        Chat.instance.m_hideTimer = 0f;
-        Chat.instance.AddString(bossName, finalText, Talker.Type.Normal);
+        Vector3 textOffset = Vector3.up * 2f;
+        float textCullDistance = 25f;
+        float visibleTime = 5f;
+
+        Chat.instance.SetNpcText(boss.gameObject, textOffset, textCullDistance, visibleTime, "", finalText, large: false);
+    }
+
+    public static string GetBossPrefabName(Humanoid boss)
+    {
+        if (boss == null) return "unknown";
+    
+        try
+        {
+            // Получаем Character компонент
+            Character character = boss as Character ?? boss.GetComponent<Character>();
+            if (character != null)
+            {
+                // Пытаемся найти префаб в ZNetScene
+                foreach (var prefab in ZNetScene.instance.m_prefabs)
+                {
+                    var prefabCharacter = prefab.GetComponent<Character>();
+                    if (prefabCharacter != null && 
+                        prefabCharacter.m_name == character.m_name &&
+                        prefabCharacter.IsBoss())
+                    {
+                        return prefab.name;
+                    }
+                }
+            }
+        
+            // Запасной способ через ZDO
+            if (boss.m_nview?.IsValid() == true)
+            {
+                ZDO zdo = boss.m_nview.GetZDO();
+                if (zdo != null)
+                {
+                    GameObject prefab = ZNetScene.instance.GetPrefab(zdo.GetPrefab());
+                    if (prefab != null)
+                    {
+                        return prefab.name;
+                    }
+                }
+            }
+        
+            return boss.gameObject.name.Replace("(Clone)", "").Trim();
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"VBBossChatter: Ошибка получения имени префаба босса: {e.Message}");
+            return "unknown";
+        }
+    }
+
+    public static string NormalizeBossName(string bossName)
+    {
+        if (string.IsNullOrEmpty(bossName)) return "unknown";
+    
+        // Просто убираем числовую часть из имени файла
+        if (bossName.Contains("_messages"))
+        {
+            return bossName.Replace("_messages", "");
+        }
+    
+        return bossName;
     }
 
     public static void CleanupDestroyedBosses()
@@ -54,24 +125,27 @@ public class BossUtill
     {
         if (!__instance) return;
 
-        BossUtill.SendMessageInChatShout(__instance, BossMessage.despawnMessages, "#FF0000"); //красный
-        //  SendMessageAboveBossShout(__instance, despawnMessages);
+        // Для деспавна используем чат, а не сообщение над боссом
+        string bossPrefabName = GetBossPrefabName(__instance);
+        string[] messages = BossMessage.GetDespawnMessages(bossPrefabName);
+        SendMessageInChatShout(__instance, messages, "#FF0000"); //красный
 
         // Прямое удаление через ZNetScene
         if (ZNetScene.instance && __instance.gameObject)
         {
-            if (__instance.m_nview && __instance.m_nview.IsValid()) __instance.m_nview.ClaimOwnership();
+            if (__instance.m_nview && __instance.m_nview.IsValid()) 
+                __instance.m_nview.ClaimOwnership();
             ZNetScene.instance.Destroy(__instance.gameObject);
         }
 
         // Fallback через ZDO если объект все еще существует
         if (__instance && __instance.gameObject)
         {
-            //   Debug.LogWarning($"Принудительное удаление босса {__instance.m_name} через ZDO");
             if (__instance.m_nview && __instance.m_nview.IsValid())
             {
                 ZDO zdo = __instance.m_nview.GetZDO();
-                if (zdo != null) ZDOMan.instance.DestroyZDO(zdo);
+                if (zdo != null) 
+                    ZDOMan.instance.DestroyZDO(zdo);
             }
         }
 
@@ -160,80 +234,84 @@ public class BossUtill
         return count;
     }
 
-
- /*   public static bool IsHealingConsumable(ItemDrop.ItemData item)
+    public static bool IsHealingItem(ItemDrop.ItemData item, string bossPrefabName = "default")
     {
-        return item != null && item.m_shared != null && item.m_shared.m_itemType == ItemDrop.ItemData.ItemType.Consumable;
-    }
-
-    public static GameObject GetItemPrefab(string prefabName)
-    {
-        if (ObjectDB.instance == null || string.IsNullOrEmpty(prefabName)) return null;
-        return ObjectDB.instance.GetItemPrefab(prefabName);
-    }
-
-    public static string GetItemPrefabName(ItemDrop.ItemData item)
-    {
-        if (item?.m_shared?.m_name != null)
-            return item.m_shared.m_name;
-
-        return string.Empty;
-    }*/
-
-    public static bool IsHealingItem(ItemDrop.ItemData item)
-    {
+        if (item == null) return false;
+    
         string prefabName = GetRealPrefabName(item);
         if (string.IsNullOrEmpty(prefabName)) return false;
 
-        return BossMessage.PotionPrefabs.Contains(prefabName) ||
-               BossMessage.FoodPrefabs.Contains(prefabName) ||
-               BossMessage.BerryPrefabs.Contains(prefabName) ||
-               BossMessage.MushroomPrefabs.Contains(prefabName);
+        // Получаем префабы для конкретного босса (или по умолчанию)
+        HashSet<string> potionPrefabs = BossMessage.GetPotionPrefabs(bossPrefabName);
+        HashSet<string> foodPrefabs = BossMessage.GetFoodPrefabs(bossPrefabName);
+        HashSet<string> berryPrefabs = BossMessage.GetBerryPrefabs(bossPrefabName);
+        HashSet<string> mushroomPrefabs = BossMessage.GetMushroomPrefabs(bossPrefabName);
+
+        return potionPrefabs.Contains(prefabName) || 
+               foodPrefabs.Contains(prefabName) || 
+               berryPrefabs.Contains(prefabName) || 
+               mushroomPrefabs.Contains(prefabName);
     }
 
 
-    public static string[] GetHealTauntMessages(ItemDrop.ItemData item)
+    public static string[] GetHealTauntMessages(ItemDrop.ItemData item, string bossPrefabName = "default")
     {
+        if (item == null) return new string[0];
+    
         string prefabName = GetRealPrefabName(item);
-        if (string.IsNullOrEmpty(prefabName)) return BossMessage.healTauntMessages;
+        if (string.IsNullOrEmpty(prefabName)) 
+            return BossMessage.GetHealTauntMessages(bossPrefabName);
 
-        // Определяем категорию для подбора сообщений
-        if (BossMessage.PotionPrefabs.Contains(prefabName))
+        // Получаем префабы для конкретного босса
+        HashSet<string> potionPrefabs = BossMessage.GetPotionPrefabs(bossPrefabName);
+        HashSet<string> foodPrefabs = BossMessage.GetFoodPrefabs(bossPrefabName);
+        HashSet<string> berryPrefabs = BossMessage.GetBerryPrefabs(bossPrefabName);
+        HashSet<string> mushroomPrefabs = BossMessage.GetMushroomPrefabs(bossPrefabName);
+
+        if (potionPrefabs.Contains(prefabName))
         {
-            return BossMessage.potionTauntMessages;
+            return BossMessage.GetPotionTauntMessages(bossPrefabName);
         }
-        else if (BossMessage.FoodPrefabs.Contains(prefabName))
+        else if (foodPrefabs.Contains(prefabName))
         {
-            return BossMessage.foodTauntMessages;
+            return BossMessage.GetFoodTauntMessages(bossPrefabName);
         }
-        else if (BossMessage.BerryPrefabs.Contains(prefabName))
+        else if (berryPrefabs.Contains(prefabName))
         {
-            return BossMessage.berryTauntMessages;
+            return BossMessage.GetBerryTauntMessages(bossPrefabName);
         }
-        else if (BossMessage.MushroomPrefabs.Contains(prefabName))
+        else if (mushroomPrefabs.Contains(prefabName))
         {
-            return BossMessage.mushroomTauntMessages;
+            return BossMessage.GetMushroomTauntMessages(bossPrefabName);
         }
 
-        return BossMessage.healTauntMessages;
+        return BossMessage.GetHealTauntMessages(bossPrefabName);
     }
 
-    public static string GetItemCategory(ItemDrop.ItemData item)
+    public static string GetItemCategory(ItemDrop.ItemData item, string bossPrefabName = "default")
     {
+        if (item == null) return "unknown";
+    
         string prefabName = GetRealPrefabName(item);
         if (string.IsNullOrEmpty(prefabName)) return "unknown";
 
-        if (BossMessage.PotionPrefabs.Contains(prefabName)) return "potion";
-        if (BossMessage.FoodPrefabs.Contains(prefabName)) return "food";
-        if (BossMessage.BerryPrefabs.Contains(prefabName)) return "berry";
-        if (BossMessage.MushroomPrefabs.Contains(prefabName)) return "mushroom";
+        // Получаем префабы для конкретного босса
+        HashSet<string> potionPrefabs = BossMessage.GetPotionPrefabs(bossPrefabName);
+        HashSet<string> foodPrefabs = BossMessage.GetFoodPrefabs(bossPrefabName);
+        HashSet<string> berryPrefabs = BossMessage.GetBerryPrefabs(bossPrefabName);
+        HashSet<string> mushroomPrefabs = BossMessage.GetMushroomPrefabs(bossPrefabName);
+
+        if (potionPrefabs.Contains(prefabName)) return "potion";
+        if (foodPrefabs.Contains(prefabName)) return "food";
+        if (berryPrefabs.Contains(prefabName)) return "berry";
+        if (mushroomPrefabs.Contains(prefabName)) return "mushroom";
 
         return "unknown";
     }
+
     public static string GetRealPrefabName(ItemDrop.ItemData item)
     {
-        if (item?.m_dropPrefab != null)
-            return item.m_dropPrefab.name;
+        if (item?.m_dropPrefab != null) return item.m_dropPrefab.name;
 
         // Попробуем восстановить через ObjectDB
         foreach (var prefab in ObjectDB.instance.m_items)
@@ -247,5 +325,4 @@ public class BossUtill
 
         return string.Empty;
     }
-
 }

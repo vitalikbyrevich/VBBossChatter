@@ -39,8 +39,9 @@ public static class VB_BossMain
                     data.LastPlayerSeenTime = currentTime;
                     data.IsTimerRunning = true;
                     BossUtill.bossDataDict[spawnPoint] = data;
-                    BossUtill.SendMessageInChatNormal(__instance, BossMessage.lostMessages, "#FFFF00"); //желтый
-                    //  SendMessageAboveBoss(__instance, lostMessages);
+                    string bossPrefabName = BossUtill.GetBossPrefabName(__instance);
+                    string[] messages = BossMessage.GetLostMessages(bossPrefabName);
+                    BossUtill.SendMessageAsRaven(__instance, messages, "#FFFF00");
                 }
                 else if (currentTime - data.LastPlayerSeenTime >= VBBossChatter.despawnDelayConfig.Value * 60f)
                 {

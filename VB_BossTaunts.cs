@@ -53,6 +53,7 @@ public class VB_BossTaunts
                 }
 
                 // Существующая логика отслеживания урона боссу
+                // Существующая логика отслеживания урона боссу
                 float currentHealth = boss.GetHealth();
                 if (bossLastHealth.TryGetValue(boss, out float lastHealth))
                 {
@@ -62,8 +63,12 @@ public class VB_BossTaunts
                         float lastTauntTime = lastDamageTauntTime.ContainsKey(boss) ? lastDamageTauntTime[boss] : 0f;
                         if (currentTime - lastTauntTime > 25f && Random.value < 0.5f)
                         {
-                            string msg = BossMessage.damageTauntMessages[Random.Range(0, BossMessage.damageTauntMessages.Length)];
-                            BossUtill.SendMessageInChatNormal(boss, new[] { msg }, "#FF4500");
+                            // Получаем индивидуальные сообщения для босса
+                            string bossPrefabName = BossUtill.GetBossPrefabName(boss);
+                            string[] damageMessages = BossMessage.GetDamageTauntMessages(bossPrefabName);
+                            string msg = damageMessages[Random.Range(0, damageMessages.Length)];
+
+                            BossUtill.SendMessageAsRaven(boss, new[] { msg }, "#FF4500");
                             lastDamageTauntTime[boss] = currentTime;
                         }
                     }
@@ -88,6 +93,9 @@ public class VB_BossTaunts
             string bossName = Localization.instance.Localize(boss.m_name);
             string playerName = target.GetPlayerName();
 
+            // Получаем префаб имя босса для индивидуальных сообщений
+            string bossPrefabName = BossUtill.GetBossPrefabName(boss);
+
             // Всегда срабатывает, но с разными сообщениями в зависимости от статистики
             string msg;
 
@@ -96,21 +104,24 @@ public class VB_BossTaunts
                 // Особые насмешки для "любимых жертв" (3+ смертей)
                 if (Random.value < 0.15f)
                 {
-                    msg = BossMessage.rareTauntMessages[Random.Range(0, BossMessage.rareTauntMessages.Length)];
+                    string[] rareMessages = BossMessage.GetRareTauntMessages(bossPrefabName);
+                    msg = rareMessages[Random.Range(0, rareMessages.Length)];
                 }
                 else
                 {
-                    msg = BossMessage.tauntMessages[Random.Range(0, BossMessage.tauntMessages.Length)];
+                    string[] tauntMessages = BossMessage.GetTauntMessages(bossPrefabName);
+                    msg = tauntMessages[Random.Range(0, tauntMessages.Length)];
                 }
             }
             else
             {
                 // Обычные насмешки для всех игроков
-                msg = BossMessage.aggroTauntMessages[Random.Range(0, BossMessage.aggroTauntMessages.Length)];
+                string[] aggroMessages = BossMessage.GetAggroTauntMessages(bossPrefabName);
+                msg = aggroMessages[Random.Range(0, aggroMessages.Length)];
             }
 
             msg = msg.Replace("{player}", playerName);
-            BossUtill.SendMessageInChatNormal(boss, new[] { msg }, "#00FF00");
+            BossUtill.SendMessageAsRaven(boss, new[] { msg }, "#00FF00");
         }
     }
 
@@ -128,24 +139,29 @@ public class VB_BossTaunts
                 lastBossDamage[__instance] = (attacker as Humanoid, Time.time);
 
                 // Насмешка при блокировании - проверяем через IsBlocking()
+                // Насмешка при блокировании - проверяем через IsBlocking()
                 if (__instance.IsBlocking() && Random.value < 0.8f)
                 {
                     string bossName = Localization.instance.Localize((attacker as Humanoid).m_name);
                     string playerName = __instance.GetPlayerName();
                     var key = (bossName, playerName);
 
+                    // Получаем префаб имя босса
+                    string bossPrefabName = BossUtill.GetBossPrefabName(attacker as Humanoid);
+                    string[] blockMessages = BossMessage.GetBlockTauntMessages(bossPrefabName);
+
                     // Проверяем счетчик смертей для особых насмешек
                     if (bossKillStats.TryGetValue(key, out int deaths) && deaths >= tauntDeathThreshold)
                     {
-                        string msg = BossMessage.blockTauntMessages[Random.Range(0, BossMessage.blockTauntMessages.Length)];
+                        string msg = blockMessages[Random.Range(0, blockMessages.Length)];
                         msg = msg.Replace("{player}", playerName);
-                        BossUtill.SendMessageInChatNormal(attacker as Humanoid, new[] { msg }, "#FFA500");
+                        BossUtill.SendMessageAsRaven(attacker as Humanoid, new[] { msg }, "#FFA500");
                     }
                     else
                     {
                         // Обычная насмешка при блоке
-                        string msg = BossMessage.blockTauntMessages[Random.Range(0, BossMessage.blockTauntMessages.Length)];
-                        BossUtill.SendMessageInChatNormal(attacker as Humanoid, new[] { msg }, "#FFA500");
+                        string msg = blockMessages[Random.Range(0, blockMessages.Length)];
+                        BossUtill.SendMessageAsRaven(attacker as Humanoid, new[] { msg }, "#FFA500");
                     }
                 }
             }
@@ -157,60 +173,65 @@ public class VB_BossTaunts
     {
         private static readonly Dictionary<Player, (string itemName, int initialCount)> pendingHealChecks = new();
 
-        private static void Prefix(Humanoid __instance, Inventory inventory, ItemDrop.ItemData item, bool fromInventoryGui)
-        {
-            if (!__instance.IsPlayer()) return;
-            var player = __instance as Player;
-            if (!player || item == null) return;
+       private static void Prefix(Humanoid __instance, Inventory inventory, ItemDrop.ItemData item, bool fromInventoryGui)
+{
+    if (!__instance.IsPlayer()) return;
+    var player = __instance as Player;
+    if (!player || item == null) return;
 
-            bool isHealingItem = BossUtill.IsHealingItem(item);
-            if (!isHealingItem) return;
+    // Используем "default" для проверки предметов
+    bool isHealingItem = BossUtill.IsHealingItem(item, "default");
+    if (!isHealingItem) return;
 
-            var playerInventory = player.GetInventory();
-            if (playerInventory == null) return;
+    var playerInventory = player.GetInventory();
+    if (playerInventory == null) return;
 
-            string itemPrefabName = BossUtill.GetRealPrefabName(item);
-            int initialCount = BossUtill.GetItemCountInInventory(playerInventory, itemPrefabName);
-            pendingHealChecks[player] = (itemPrefabName, initialCount);
-        }
+    string itemPrefabName = BossUtill.GetRealPrefabName(item);
+    int initialCount = BossUtill.GetItemCountInInventory(playerInventory, itemPrefabName);
+    pendingHealChecks[player] = (itemPrefabName, initialCount);
+}
 
-        private static void Postfix(Humanoid __instance, Inventory inventory, ItemDrop.ItemData item, bool fromInventoryGui)
-        {
-            if (!__instance.IsPlayer()) return;
-            var player = __instance as Player;
-            if (!player || item == null) return;
+private static void Postfix(Humanoid __instance, Inventory inventory, ItemDrop.ItemData item, bool fromInventoryGui)
+{
+    if (!__instance.IsPlayer()) return;
+    var player = __instance as Player;
+    if (!player || item == null) return;
 
-            string itemPrefabName = BossUtill.GetRealPrefabName(item);
-            if (!pendingHealChecks.TryGetValue(player, out var pending) || pending.itemName != itemPrefabName) 
-                return;
+    string itemPrefabName = BossUtill.GetRealPrefabName(item);
+    if (!pendingHealChecks.TryGetValue(player, out var pending) || pending.itemName != itemPrefabName) 
+        return;
 
-            var playerInventory = player.GetInventory();
-            if (playerInventory == null)
-            {
-                pendingHealChecks.Remove(player);
-                return;
-            }
+    var playerInventory = player.GetInventory();
+    if (playerInventory == null)
+    {
+        pendingHealChecks.Remove(player);
+        return;
+    }
 
-            int currentCount = BossUtill.GetItemCountInInventory(playerInventory, itemPrefabName);
-            bool itemWasUsed = currentCount < pending.initialCount;
+    int currentCount = BossUtill.GetItemCountInInventory(playerInventory, itemPrefabName);
+    bool itemWasUsed = currentCount < pending.initialCount;
 
-            if (itemWasUsed)
-            {
-                var selectedBoss = SelectBossForHealTaunt(player);
+    if (itemWasUsed)
+    {
+        var selectedBoss = SelectBossForHealTaunt(player);
         
-                if (selectedBoss != null)
-                {
-                    string[] messages = BossUtill.GetHealTauntMessages(item);
-                    string msg = messages[Random.Range(0, messages.Length)];
-                    string category = BossUtill.GetItemCategory(item);
+        if (selectedBoss != null)
+        {
+            // Получаем префаб имя выбранного босса
+            string bossPrefabName = BossUtill.GetBossPrefabName(selectedBoss);
             
-                    BossUtill.SendMessageInChatNormal(selectedBoss, new[] { msg }, "#FF69B4");
-                    Debug.Log($"Насмешка при использовании {category}: {itemPrefabName}");
-                }
-            }
-
-            pendingHealChecks.Remove(player);
+            // Используем индивидуальные сообщения для этого босса
+            string[] messages = BossUtill.GetHealTauntMessages(item, bossPrefabName);
+            string msg = messages.Length > 0 ? messages[Random.Range(0, messages.Length)] : "Лечи свои раны!";
+            string category = BossUtill.GetItemCategory(item, bossPrefabName);
+            
+            BossUtill.SendMessageAsRaven(selectedBoss, new[] { msg }, "#FF69B4");
+            Debug.Log($"Насмешка при использовании {category}: {itemPrefabName}");
         }
+    }
+
+    pendingHealChecks.Remove(player);
+}
 
         private static Humanoid SelectBossForHealTaunt(Player player)
         {
@@ -253,7 +274,9 @@ public class VB_BossTaunts
                     else bossKillStats[key] = 1;
 
                     // Только сообщение об убийстве
-                    BossUtill.SendMessageInChatShout(boss, BossMessage.killMessages, "#FF0000");
+                    string bossPrefabName = BossUtill.GetBossPrefabName(__instance);
+                    string[] messages = BossMessage.GetKillMessages(bossPrefabName);
+                    BossUtill.SendMessageAsRaven(__instance, messages, "#FFFF00");
 
                     // СБРАСЫВАЕМ таймер насмешки для этой пары босс-игрок
                     lastTauntTime.Remove(key);
